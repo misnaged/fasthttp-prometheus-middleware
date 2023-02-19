@@ -61,8 +61,7 @@ func NewMiddleware(name, prefix string, buckets ...float64) func(handler fasthtt
 			p := &Prometheus{}
 			p.registerCount(name, prefix)
 			p.registerHisto(name, prefix, buckets...)
-			prometheus.MustRegister(p.latency)
-			prometheus.MustRegister(p.reqs)
+			prometheus.MustRegister(p.reqs, p.latency)
 			start := time.Now()
 			next(ctx)
 			p.reqs.WithLabelValues(strconv.Itoa(ctx.Response.StatusCode()), zeroconv.B2S(ctx.Method()), zeroconv.B2S(ctx.URI().Path())).Inc()
