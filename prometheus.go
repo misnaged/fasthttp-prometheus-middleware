@@ -58,10 +58,11 @@ func (p *Prometheus) registerCount(name, prefix string) {
 func NewMiddleware(name, prefix string, buckets ...float64) func(handler fasthttp.RequestHandler) fasthttp.RequestHandler {
 	return func(next fasthttp.RequestHandler) fasthttp.RequestHandler {
 		return func(ctx *fasthttp.RequestCtx) {
-			p := &Prometheus{}
+			p := Prometheus{}
 			p.registerCount(name, prefix)
 			p.registerHisto(name, prefix, buckets...)
-			prometheus.MustRegister(p.reqs, p.latency)
+			prometheus.MustRegister(p.reqs)
+			prometheus.MustRegister(p.latency)
 			start := time.Now()
 			next(ctx)
 			p.reqs.WithLabelValues(strconv.Itoa(ctx.Response.StatusCode()), zeroconv.B2S(ctx.Method()), zeroconv.B2S(ctx.URI().Path())).Inc()
