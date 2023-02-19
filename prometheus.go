@@ -27,7 +27,34 @@ var (
 	DefaultBuckets = []float64{.005, .01, .02, 0.04, .06, 0.08, .1, 0.15, .25, 0.4, .6, .8, 1, 1.5, 2, 3, 5}
 )
 
-func (p *Prometheus) registerHisto(name, prefix string, buckets ...float64) {
+//func (p *Prometheus) registerHisto(name, prefix string, buckets ...float64) {
+//
+//
+//}
+//
+//func (p *Prometheus) registerCount(name, prefix string) {
+//	p.reqs = prometheus.NewCounterVec(
+//		prometheus.CounterOpts{
+//			Name:        addPrefixIfNeeded(reqsName, prefix),
+//			Help:        "How many HTTP requests processed, partitioned by status code, method and HTTP path.",
+//			ConstLabels: prometheus.Labels{"service": name},
+//		},
+//		[]string{"code", "method", "path"},
+//	)
+//}
+
+// NewMiddleware is
+func NewMiddleware(name, prefix string, buckets ...float64) func(handler fasthttp.RequestHandler) fasthttp.RequestHandler {
+	var p Prometheus
+	p.reqs = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name:        addPrefixIfNeeded(reqsName, prefix),
+			Help:        "How many HTTP requests processed, partitioned by status code, method and HTTP path.",
+			ConstLabels: prometheus.Labels{"service": name},
+		},
+		[]string{"code", "method", "path"},
+	)
+	prometheus.MustRegister(p.reqs)
 
 	if len(buckets) == 0 {
 		buckets = dflBuckets
@@ -41,35 +68,17 @@ func (p *Prometheus) registerHisto(name, prefix string, buckets ...float64) {
 		},
 		[]string{"code", "method", "path"},
 	)
+	prometheus.MustRegister(p.latency)
+	return p.handler
 }
 
-func (p *Prometheus) registerCount(name, prefix string) {
-	p.reqs = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name:        addPrefixIfNeeded(reqsName, prefix),
-			Help:        "How many HTTP requests processed, partitioned by status code, method and HTTP path.",
-			ConstLabels: prometheus.Labels{"service": name},
-		},
-		[]string{"code", "method", "path"},
-	)
-}
-
-// NewMiddleware is
-func NewMiddleware(name, prefix string, buckets ...float64) func(handler fasthttp.RequestHandler) fasthttp.RequestHandler {
-	return func(next fasthttp.RequestHandler) fasthttp.RequestHandler {
-		return func(ctx *fasthttp.RequestCtx) {
-			p := Prometheus{}
-			p.registerCount(name, prefix)
-			p.registerHisto(name, prefix, buckets...)
-			prometheus.MustRegister(p.reqs)
-			prometheus.MustRegister(p.latency)
-			start := time.Now()
-			next(ctx)
-			p.reqs.WithLabelValues(strconv.Itoa(ctx.Response.StatusCode()), zeroconv.B2S(ctx.Method()), zeroconv.B2S(ctx.URI().Path())).Inc()
-			p.latency.WithLabelValues(strconv.Itoa(ctx.Response.StatusCode()),
-				zeroconv.B2S(ctx.Method()), zeroconv.B2S(ctx.URI().Path())).Observe(float64(time.Since(start).Nanoseconds()) / 1000000)
-
-		}
+func (p Prometheus) handler(next fasthttp.RequestHandler) fasthttp.RequestHandler {
+	return func(ctx *fasthttp.RequestCtx) {
+		start := time.Now()
+		next(ctx)
+		p.reqs.WithLabelValues(strconv.Itoa(ctx.Response.StatusCode()), zeroconv.B2S(ctx.Method()), zeroconv.B2S(ctx.URI().Path())).Inc()
+		p.latency.WithLabelValues(strconv.Itoa(ctx.Response.StatusCode()),
+			zeroconv.B2S(ctx.Method()), zeroconv.B2S(ctx.URI().Path())).Observe(float64(time.Since(start).Nanoseconds()) / 1000000)
 	}
 }
 
