@@ -64,12 +64,11 @@ func NewMiddleware(name, prefix string, buckets ...float64) func(handler fasthtt
 			p.registerCount(name, prefix)
 			p.registerHisto(name, prefix, buckets...)
 			start := time.Now()
+			next(ctx)
 			p.reqs.WithLabelValues(strconv.Itoa(ctx.Response.StatusCode()), zeroconv.B2S(ctx.Method()), zeroconv.B2S(ctx.URI().Path())).Inc()
 			p.latency.WithLabelValues(strconv.Itoa(ctx.Response.StatusCode()),
 				zeroconv.B2S(ctx.Method()), zeroconv.B2S(ctx.URI().Path())).Observe(float64(time.Since(start).Nanoseconds()) / 1000000)
 
-			//next must come at the end
-			next(ctx)
 		}
 	}
 }
